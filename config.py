@@ -78,7 +78,7 @@ learn_arg.add_argument('--mode', type=str, default='train',
                        single: training one dag')
 learn_arg.add_argument('--batch_size', type=int, default=64)
 learn_arg.add_argument('--test_batch_size', type=int, default=1)
-learn_arg.add_argument('--max_epoch', type=int, default=150)
+learn_arg.add_argument('--max_epoch', type=int, default=1)
 learn_arg.add_argument('--entropy_mode', type=str, default='reward', choices=['reward', 'regularizer'])
 
 
@@ -91,7 +91,7 @@ learn_arg.add_argument('--reward_c', type=int, default=80,
 # NOTE(brendan): irrelevant for actor critic.
 learn_arg.add_argument('--ema_baseline_decay', type=float, default=0.95) # TODO: very important
 learn_arg.add_argument('--discount', type=float, default=1.0) # TODO
-learn_arg.add_argument('--controller_max_step', type=int, default=100,
+learn_arg.add_argument('--controller_max_step', type=int, default=7000,
                        help='step for controller parameters')
 learn_arg.add_argument('--controller_optim', type=str, default='adam')
 learn_arg.add_argument('--controller_lr', type=float, default=3.5e-4,

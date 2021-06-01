@@ -13,9 +13,11 @@ import torch.nn.parallel
 from torch.autograd import Variable
 from xgboost import XGBClassifier
 
+import estimate_loss_net
 import model_xgb
 import utils
 from controller import Controller
+from estimate_loss_net import estimate_loss
 from model_xgb import construct_xgb
 from read_data import read_data
 
@@ -47,10 +49,14 @@ class Trainer(object):
         self.y_train = read_data()[2]
         self.y_test = read_data()[3]
         self.accuracy_list=[]
+        self.param_loss=[]
     def build_model(self):
         self.controller=Controller(self.args)
         params, log_probs, entropies = self.controller.sample()
         self.shared = model_xgb.construct_xgb(params)
+        self.estimate_loss = estimate_loss_net.estimate_loss_net()
+        self.estimate_loss.load_state_dict(torch.load('./estimate_net'))
+        self.estimate_loss.eval()
 
     def train_shared(self):
         params, log_probs, entropies = self.controller.sample()
@@ -69,7 +75,8 @@ class Trainer(object):
         plt.show()
 
 
-    def get_loss(self,params):
+    def get_loss_true(self,params):
+
         self.shared = model_xgb.construct_xgb(params)
         self.shared.fit(self.X_train.astype('float') / 256, self.y_train)
         loss=0
@@ -78,11 +85,27 @@ class Trainer(object):
         sample_loss=-accuracy_score(self.y_test,pred)
         loss+=sample_loss
         self.accuracy_list.append(loss)
+        para_list = params.detach().numpy().tolist()
+        para_list.append(loss)
+        self.param_loss.append(para_list)
+        if self.controller_step==5000:
+            np.savetxt('param_loss.csv', self.param_loss, fmt='%s', delimiter=',')
         return loss
+
+    def get_loss_estimate(self,params):
+        loss=self.estimate_loss.forward(params)
+        self.accuracy_list.append(loss)
+        return loss
+
+    def get_loss_from_true_or_estimate(self,params):
+        if self.controller_step<5001:
+            return self.get_loss_estimate(params)
+        else:
+            return self.get_loss_true(params)
 
     def get_reward(self,params,entropies):
         entropies=entropies.detach().numpy()
-        valid_loss=self.get_loss(params)
+        valid_loss=self.get_loss_from_true_or_estimate(params)
         valid_ppl=math.exp(valid_loss)
         R=self.args.reward_c/valid_ppl
         rewards=R+self.args.entropy_coeff*entropies
@@ -97,7 +120,7 @@ class Trainer(object):
         entropy_history=[]
         adv_history=[]
         total_loss=0
-        valid_idx=0
+
         for step in range(self.args.controller_max_step):
             params, log_probs, entropies=self.controller.sample()
             rewards=self.get_reward(params,entropies)
@@ -117,4 +140,5 @@ class Trainer(object):
             loss.backward()
             self.controller_optim.step()
             self.controller_step += 1
+
 
